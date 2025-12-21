@@ -1,6 +1,11 @@
+# render.yaml
 services:
   - type: web
     name: dentalreserve
-    runtime: python
+    env: python
+    region: oregon  # 可选，选择离你近的地区
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn dental_now:app --host 0.0.0.0 --port 10000
+    startCommand: uvicorn dental_now:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.16
