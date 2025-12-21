@@ -517,12 +517,14 @@ def main():
     try:
         port = int(os.environ.get("PORT", 8000))
         print(f"🚀 启动服务器在端口 {port}")
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=port,
-            log_level="info",
-            reload=True  # 开发时自动重载
+        if os.environ.get("RENDER") is None:
+            uvicorn.run(
+                app,
+                host="0.0.0.0",
+                port=port,
+                log_level="info",
+                reload=True
+            )
         )
     except KeyboardInterrupt:
         print("\n👋 服务器已停止")
