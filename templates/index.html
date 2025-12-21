@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DentalReserve - 牙医预约平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        .clinic-card:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+        .booking-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .booking-modal.active { display: flex; }
+        #map-container {
+            height: 500px;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            margin-bottom: 40px;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            width: 320px;
+        }
+        .map-controls input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .map-controls button {
+            width: 100%;
+            padding: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .map-controls button:hover {
+            background: #2563eb;
+        }
+        .view-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+            font-weight: bold;
+            color: #3b82f6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        .view-toggle:hover {
+            background: #f0f9ff;
+            transform: scale(1.05);
+        }
+        .map-marker {
+            background: white;
+            border-radius: 50%;
+            padding: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border: 3px solid #3b82f6;
+        }
+        .map-marker i {
+            color: #3b82f6;
+            font-size: 18px;
+        }
+        .leaflet-popup-content {
+            min-width: 200px;
+        }
+        .map-clinic-info {
+            font-family: Arial, sans-serif;
+        }
+        .map-clinic-info h4 {
+            color: #3b82f6;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .map-clinic-info p {
+            margin: 3px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        .map-clinic-info .services {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        .map-clinic-info .service-tag {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .clinic-section {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab-button.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        .tab-button:hover:not(.active) {
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+<!-- 导航栏 -->
+<nav class="bg-white shadow-lg">
+    <div class="container mx-auto px-4 py-4">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-tooth text-blue-600 text-2xl"></i>
+                <h1 class="text-2xl font-bold text-gray-800">DentalReserve</h1>
+            </div>
+            <div class="flex items-center space-x-6">
+                <a href="/" class="text-blue-600 font-semibold">首页</a>
+                <a href="#clinics" class="text-gray-600 hover:text-blue-600">找诊所</a>
+                <a href="#how-it-works" class="text-gray-600 hover:text-blue-600">使用指南</a>
+                <button onclick="openLoginModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i class="fas fa-sign-in-alt mr-2"></i>登录/注册
+                </button>
+                <a href="/clinic-dashboard" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <i class="fas fa-hospital mr-2"></i>诊所后台
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- 搜索栏 -->
+<div class="bg-gradient-to-r from-blue-500 to-teal-500 py-12">
+    <div class="container mx-auto px-4 text-center">
+        <h2 class="text-4xl font-bold text-white mb-4">找到最适合您的牙医诊所</h2>
+        <p class="text-xl text-blue-100 mb-8">在线预约，虚拟电话保护隐私，专业服务</p>
+
+        <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-xl p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">所在城市</label>
+                    <input type="text" id="search-city" placeholder="如：多伦多" class="w-full p-3 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">服务项目</label>
+                    <select id="search-service" class="w-full p-3 border border-gray-300 rounded-lg">
+                        <option value="">所有服务</option>
+                        <option value="洗牙">牙齿清洁</option>
+                        <option value="补牙">补牙</option>
+                        <option value="根管治疗">根管治疗</option>
+                        <option value="牙齿矫正">牙齿矫正</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="searchClinics()" class="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i class="fas fa-search mr-2"></i>搜索诊所
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 诊所区域（地图+列表） -->
+<div id="clinics" class="container mx-auto px-4 py-12">
+    <div class="clinic-section">
+        <!-- 标签切换 -->
+        <div class="tab-buttons">
+            <button class="tab-button active" onclick="switchView('map')">
+                <i class="fas fa-map mr-2"></i>地图视图
+            </button>
+            <button class="tab-button" onclick="switchView('list')">
+                <i class="fas fa-list mr-2"></i>列表视图
+            </button>
+        </div>
+
+        <!-- 地图容器 -->
+        <div id="map-container">
+            <div id="map"></div>
+            <div class="map-controls">
+                <h3 class="text-lg font-bold mb-3 text-gray-800">搜索附近诊所</h3>
+                <input type="text" id="map-search" placeholder="输入地址（如：多伦多市中心）" class="w-full p-3 border border-gray-300 rounded-lg">
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <select id="map-radius" class="p-2 border border-gray-300 rounded-lg">
+                        <option value="5">5公里内</option>
+                        <option value="10" selected>10公里内</option>
+                        <option value="20">20公里内</option>
+                        <option value="50">50公里内</option>
+                    </select>
+                    <select id="map-service-filter" class="p-2 border border-gray-300 rounded-lg">
+                        <option value="">所有服务</option>
+                        <option value="洗牙">牙齿清洁</option>
+                        <option value="补牙">补牙</option>
+                        <option value="根管治疗">根管治疗</option>
+                        <option value="牙齿矫正">牙齿矫正</option>
+                    </select>
+                </div>
+                <button onclick="searchOnMap()" class="mb-2">
+                    <i class="fas fa-search mr-2"></i>搜索
+                </button>
+                <button onclick="useMyLocation()" class="bg-green-600 hover:bg-green-700">
+                    <i class="fas fa-location-arrow mr-2"></i>使用我的位置
+                </button>
+            </div>
+            <div class="view-toggle" onclick="switchView('list')">
+                <i class="fas fa-list"></i>
+                <span>切换到列表视图</span>
+            </div>
+        </div>
+
+        <!-- 诊所列表容器 -->
+        <div id="list-container">
+            <h2 class="text-3xl font-bold text-gray-800 mb-8">推荐诊所</h2>
+            <div id="clinics-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 诊所卡片会通过JS动态加载 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 如何使用 -->
+<div id="how-it-works" class="bg-gray-100 py-12">
+    <div class="container mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">如何使用 DentalReserve</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-search text-blue-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">1. 搜索诊所</h3>
+                <p class="text-gray-600">按城市、服务项目查找附近的牙医诊所</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-calendar-alt text-green-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">2. 在线预约</h3>
+                <p class="text-gray-600">选择合适的时间，填写信息完成预约</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-phone-alt text-purple-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">3. 虚拟电话</h3>
+                <p class="text-gray-600">系统分配虚拟号码，保护您的隐私</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-stethoscope text-yellow-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">4. 就诊体验</h3>
+                <p class="text-gray-600">按时就诊，享受专业牙科服务</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 登录/注册模态框 -->
+<div id="login-modal" class="booking-modal">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto my-auto p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold">用户登录</h3>
+            <button onclick="closeLoginModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-gray-700 mb-2">邮箱</label>
+            <input type="email" id="login-email" placeholder="patient@example.com" class="w-full p-3 border border-gray-300 rounded-lg">
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-700 mb-2">密码</label>
+            <input type="password" id="login-password" placeholder="Patient123!" class="w-full p-3 border border-gray-300 rounded-lg">
+        </div>
+
+        <button onclick="performLogin()" class="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mb-4">
+            登录
+        </button>
+
+        <p class="text-center text-gray-600 text-sm">
+            测试账户：patient@example.com / Patient123!
+        </p>
+    </div>
+</div>
+
+<!-- 预约模态框 -->
+<div id="booking-modal" class="booking-modal">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-auto my-auto p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold" id="modal-clinic-name"></h3>
+            <button onclick="closeBookingModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="text-lg font-semibold mb-4">预约信息</h4>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">选择日期</label>
+                    <input type="date" id="booking-date" class="w-full p-3 border border-gray-300 rounded-lg">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">选择时间</label>
+                    <select id="booking-time" class="w-full p-3 border border-gray-300 rounded-lg">
+                        <option value="09:00">09:00 AM</option>
+                        <option value="10:00">10:00 AM</option>
+                        <option value="11:00">11:00 AM</option>
+                        <option value="14:00">02:00 PM</option>
+                        <option value="15:00">03:00 PM</option>
+                        <option value="16:00">04:00 PM</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">服务项目</label>
+                    <select id="booking-service" class="w-full p-3 border border-gray-300 rounded-lg">
+                        <option value="牙齿清洁">牙齿清洁 ($120)</option>
+                        <option value="补牙">补牙 ($200)</option>
+                        <option value="根管治疗">根管治疗 ($800)</option>
+                        <option value="牙齿美白">牙齿美白 ($300)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="text-lg font-semibold mb-4">个人信息</h4>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">姓名</label>
+                    <input type="text" id="patient-name" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="张三">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">邮箱</label>
+                    <input type="email" id="patient-email" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="patient@example.com">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">电话</label>
+                    <input type="tel" id="patient-phone" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="+1 (416) 555-1234">
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-gray-700 mb-2">备注（可选）</label>
+                    <textarea id="booking-notes" rows="3" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="如有特殊需求请在此备注"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <button onclick="submitBooking()" class="w-full p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-semibold">
+                <i class="fas fa-calendar-check mr-2"></i>确认预约
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 预约成功模态框 -->
+<div id="success-modal" class="booking-modal">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto my-auto p-8 text-center">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i class="fas fa-check text-green-600 text-3xl"></i>
+        </div>
+
+        <h3 class="text-2xl font-bold mb-4">预约成功！</h3>
+        <p class="text-gray-600 mb-2" id="success-clinic-name"></p>
+        <p class="text-gray-600 mb-2" id="success-date-time"></p>
+        <p class="text-gray-600 mb-4" id="success-service"></p>
+
+        <div class="bg-blue-50 p-4 rounded-lg mb-6">
+            <p class="text-sm text-gray-600 mb-2">您的虚拟电话号码：</p>
+            <p class="text-xl font-bold text-blue-600" id="virtual-phone"></p>
+            <p class="text-sm text-gray-500 mt-2">诊所将通过此号码联系您</p>
+        </div>
+
+        <button onclick="closeSuccessModal()" class="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            完成
+        </button>
+    </div>
+</div>
+
+<!-- 页脚 -->
+<footer class="bg-gray-800 text-white py-12">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <div class="flex items-center space-x-2 mb-4">
+                    <i class="fas fa-tooth text-blue-400 text-2xl"></i>
+                    <h3 class="text-2xl font-bold">DentalReserve</h3>
+                </div>
+                <p class="text-gray-400">专业的牙医预约平台，保护您的隐私，提供优质服务。</p>
+            </div>
+
+            <div>
+                <h4 class="text-lg font-semibold mb-4">快速链接</h4>
+                <ul class="space-y-2">
+                    <li><a href="/" class="text-gray-400 hover:text-white">首页</a></li>
+                    <li><a href="#clinics" class="text-gray-400 hover:text-white">找诊所</a></li>
+                    <li><a href="#how-it-works" class="text-gray-400 hover:text-white">使用指南</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-lg font-semibold mb-4">联系我们</h4>
+                <ul class="space-y-2 text-gray-400">
+                    <li><i class="fas fa-phone mr-2"></i> +1 (888) 888-8888</li>
+                    <li><i class="fas fa-envelope mr-2"></i> support@dentalreserve.ca</li>
+                    <li><i class="fas fa-map-marker-alt mr-2"></i> Toronto, Canada</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-lg font-semibold mb-4">诊所入驻</h4>
+                <p class="text-gray-400 mb-4">加入我们，扩大您的客户群</p>
+                <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    申请入驻
+                </button>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+            <p>© 2024 DentalReserve. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+    const API_BASE = 'http://localhost:8000';
+    let currentClinic = null;
+    let userToken = null;
+    let map = null;
+    let markers = [];
+    let currentLocationMarker = null;
+    let currentView = 'map'; // 'map' or 'list'
+
+    // 诊所坐标数据（模拟数据，实际应该从API获取）
+    const clinicCoordinates = {
+        '1': { lat: 43.6497, lng: -79.3779, city: 'Toronto' }, // 多伦多
+        '2': { lat: 49.2827, lng: -123.1207, city: 'Vancouver' }, // 温哥华
+        '3': { lat: 45.5017, lng: -73.5673, city: 'Montreal' }, // 蒙特利尔
+        '4': { lat: 51.0447, lng: -114.0719, city: 'Calgary' } // 卡尔加里
+    };
+
+    // 初始化地图
+    function initMap() {
+        // 设置多伦多为中心（加拿大主要城市）
+        map = L.map('map').setView([43.651070, -79.347015], 10);
+
+        // 添加OpenStreetMap图层
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+        }).addTo(map);
+
+        // 添加比例尺
+        L.control.scale({ imperial: false }).addTo(map);
+    }
+
+    // 切换视图
+    function switchView(view) {
+        currentView = view;
+
+        // 更新标签按钮状态
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        if (view === 'map') {
+            document.querySelector('.tab-button:nth-child(1)').classList.add('active');
+            document.getElementById('map-container').style.display = 'block';
+            document.getElementById('list-container').style.display = 'none';
+            document.querySelector('.view-toggle span').textContent = '切换到列表视图';
+            document.querySelector('.view-toggle').onclick = () => switchView('list');
+
+            // 调整地图大小
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+        } else {
+            document.querySelector('.tab-button:nth-child(2)').classList.add('active');
+            document.getElementById('map-container').style.display = 'none';
+            document.getElementById('list-container').style.display = 'block';
+        }
+    }
+
+    // 在地图上添加诊所标记
+    function addClinicsToMap(clinics) {
+        // 清除之前的标记
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+
+        clinics.forEach(clinic => {
+            const coords = clinicCoordinates[clinic.id] || { lat: 43.651070, lng: -79.347015 };
+
+            // 创建自定义图标
+            const icon = L.divIcon({
+                className: 'map-marker',
+                html: `<i class="fas fa-hospital"></i>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40]
+            });
+
+            // 创建标记
+            const marker = L.marker([coords.lat, coords.lng], { icon: icon }).addTo(map);
+
+            // 创建弹出窗口内容
+            const popupContent = `
+                <div class="map-clinic-info">
+                    <h4>${clinic.name}</h4>
+                    <p><i class="fas fa-map-marker-alt text-blue-500"></i> ${clinic.address}</p>
+                    <p><i class="fas fa-phone text-green-500"></i> ${clinic.phone}</p>
+                    <p><i class="fas fa-star text-yellow-500"></i> 评分: ${clinic.rating}</p>
+                    <div class="services">
+                        ${clinic.services.map(service => `<span class="service-tag">${service}</span>`).join('')}
+                    </div>
+                    <button onclick="openBookingModalFromMap('${clinic.id}')"
+                            style="margin-top: 10px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">
+                        <i class="fas fa-calendar-alt mr-2"></i>立即预约
+                    </button>
+                </div>
+            `;
+
+            marker.bindPopup(popupContent);
+            markers.push(marker);
+        });
+
+        // 如果有很多标记，调整地图视图以包含所有标记
+        if (clinics.length > 0) {
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+    }
+
+    // 从地图打开预约模态框
+    function openBookingModalFromMap(clinicId) {
+        openBookingModal(clinicId);
+    }
+
+    // 搜索地图上的诊所
+    async function searchOnMap() {
+        const searchInput = document.getElementById('map-search').value;
+        const radius = parseInt(document.getElementById('map-radius').value) || 10;
+        const serviceFilter = document.getElementById('map-service-filter').value;
+
+        if (searchInput) {
+            // 这里应该调用地理编码API将地址转换为坐标
+            // 为简单起见，我们使用预定义的坐标
+            let searchCoords;
+
+            // 简单的地理编码（模拟）
+            if (searchInput.includes('多伦多') || searchInput.includes('Toronto')) {
+                searchCoords = [43.651070, -79.347015];
+            } else if (searchInput.includes('温哥华') || searchInput.includes('Vancouver')) {
+                searchCoords = [49.2827, -123.1207];
+            } else if (searchInput.includes('蒙特利尔') || searchInput.includes('Montreal')) {
+                searchCoords = [45.5017, -73.5673];
+            } else if (searchInput.includes('卡尔加里') || searchInput.includes('Calgary')) {
+                searchCoords = [51.0447, -114.0719];
+            } else {
+                // 默认使用多伦多
+                searchCoords = [43.651070, -79.347015];
+            }
+
+            // 清除之前的当前位置标记
+            if (currentLocationMarker) {
+                map.removeLayer(currentLocationMarker);
+            }
+
+            // 添加搜索位置标记
+            currentLocationMarker = L.marker(searchCoords, {
+                icon: L.divIcon({
+                    className: 'current-location-marker',
+                    html: `<i class="fas fa-map-pin" style="color: #ef4444; font-size: 24px;"></i>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                })
+            }).addTo(map);
+
+            currentLocationMarker.bindPopup(`搜索位置: ${searchInput}`).openPopup();
+            map.setView(searchCoords, 12);
+
+            // 加载并过滤诊所
+            try {
+                const response = await fetch(`${API_BASE}/api/clinics`);
+                const data = await response.json();
+
+                let filteredClinics = data.clinics;
+
+                // 应用服务筛选
+                if (serviceFilter) {
+                    filteredClinics = filteredClinics.filter(clinic =>
+                        clinic.services.some(service =>
+                            service.toLowerCase().includes(serviceFilter.toLowerCase())
+                        )
+                    );
+                }
+
+                // 这里应该根据距离筛选，但为了简化，我们显示所有诊所
+                addClinicsToMap(filteredClinics);
+                displayClinics(filteredClinics);
+
+            } catch (error) {
+                console.error('搜索失败:', error);
+            }
+        }
+    }
+
+    // 使用我的位置
+    function useMyLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userCoords = [position.coords.latitude, position.coords.longitude];
+
+                    // 清除之前的当前位置标记
+                    if (currentLocationMarker) {
+                        map.removeLayer(currentLocationMarker);
+                    }
+
+                    // 添加用户位置标记
+                    currentLocationMarker = L.marker(userCoords, {
+                        icon: L.divIcon({
+                            className: 'user-location-marker',
+                            html: `<i class="fas fa-user" style="color: #10b981; font-size: 20px; background: white; padding: 8px; border-radius: 50%; border: 3px solid #10b981;"></i>`,
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 40]
+                        })
+                    }).addTo(map);
+
+                    currentLocationMarker.bindPopup('我的位置').openPopup();
+                    map.setView(userCoords, 13);
+
+                    // 更新搜索框
+                    document.getElementById('map-search').value = '我的当前位置';
+
+                    // 搜索附近的诊所
+                    searchOnMap();
+                },
+                (error) => {
+                    console.error('获取位置失败:', error);
+                    alert('无法获取您的位置，请检查位置权限设置。');
+                }
+            );
+        } else {
+            alert('您的浏览器不支持地理位置功能。');
+        }
+    }
+
+    // 加载诊所数据
+    async function loadClinics() {
+        try {
+            const response = await fetch(`${API_BASE}/api/clinics`);
+            const data = await response.json();
+            displayClinics(data.clinics);
+            addClinicsToMap(data.clinics);
+        } catch (error) {
+            console.error('加载诊所失败:', error);
+        }
+    }
+
+    // 显示诊所列表
+    function displayClinics(clinics) {
+        const container = document.getElementById('clinics-container');
+        container.innerHTML = '';
+
+        clinics.forEach(clinic => {
+            const card = `
+                <div class="clinic-card bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-xl font-bold text-gray-800">${clinic.name}</h3>
+                            <span class="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                                <i class="fas fa-star mr-1"></i> ${clinic.rating}
+                            </span>
+                        </div>
+
+                        <div class="space-y-3 mb-6">
+                            <div class="flex items-center text-gray-600">
+                                <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
+                                <span>${clinic.address}</span>
+                            </div>
+                            <div class="flex items-center text-gray-600">
+                                <i class="fas fa-phone mr-2 text-green-500"></i>
+                                <span>${clinic.phone}</span>
+                            </div>
+                            <div class="flex items-center text-gray-600">
+                                <i class="fas fa-clock mr-2 text-yellow-500"></i>
+                                <span>${clinic.hours || '周一至周五 9:00-18:00'}</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-gray-700 mb-3">服务项目：</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${(clinic.services || ['洗牙', '补牙']).map(service =>
+                                    `<span class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">${service}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+
+                        <button onclick="openBookingModal('${clinic.id}')" class="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                            <i class="fas fa-calendar-alt mr-2"></i>立即预约
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += card;
+        });
+    }
+
+    // 搜索诊所
+    async function searchClinics() {
+        const city = document.getElementById('search-city').value;
+        const service = document.getElementById('search-service').value;
+
+        try {
+            const response = await fetch(`${API_BASE}/api/search?city=${encodeURIComponent(city)}&service=${encodeURIComponent(service)}`);
+            const data = await response.json();
+            displayClinics(data.results);
+            addClinicsToMap(data.results);
+        } catch (error) {
+            console.error('搜索失败:', error);
+        }
+    }
+
+    // 打开预约模态框
+    function openBookingModal(clinicId) {
+        currentClinic = {
+            id: clinicId,
+            name: "测试诊所",
+            phone: "+1 (416) 555-1234"
+        };
+
+        document.getElementById('modal-clinic-name').textContent = '预约牙医服务';
+        document.getElementById('booking-modal').classList.add('active');
+
+        // 设置默认日期（明天）
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('booking-date').value = tomorrow.toISOString().split('T')[0];
+    }
+
+    // 提交预约
+    async function submitBooking() {
+        const appointmentData = {
+            clinic_id: currentClinic?.id || '1',
+            date: document.getElementById('booking-date').value,
+            time: document.getElementById('booking-time').value,
+            service: document.getElementById('booking-service').value,
+            patient_name: document.getElementById('patient-name').value,
+            patient_email: document.getElementById('patient-email').value,
+            patient_phone: document.getElementById('patient-phone').value,
+            notes: document.getElementById('booking-notes').value
+        };
+
+        if (!appointmentData.patient_name || !appointmentData.patient_email || !appointmentData.patient_phone) {
+            alert('请填写完整的个人信息');
+            return;
+        }
+
+        try {
+            const queryParams = new URLSearchParams(appointmentData).toString();
+            const response = await fetch(`${API_BASE}/api/appointments?${queryParams}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                closeBookingModal();
+                showSuccessModal(result.appointment);
+            } else {
+                alert('预约失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('预约错误:', error);
+            alert('网络错误，请稍后重试');
+        }
+    }
+
+    // 显示成功模态框
+    function showSuccessModal(appointment) {
+        document.getElementById('success-clinic-name').textContent = `诊所：${appointment.clinic_name}`;
+        document.getElementById('success-date-time').textContent = `时间：${appointment.date} ${appointment.time}`;
+        document.getElementById('success-service').textContent = `服务：${appointment.service}`;
+        document.getElementById('virtual-phone').textContent = appointment.virtual_phone;
+        document.getElementById('success-modal').classList.add('active');
+    }
+
+    // 模态框控制函数
+    function closeBookingModal() {
+        document.getElementById('booking-modal').classList.remove('active');
+    }
+
+    function closeSuccessModal() {
+        document.getElementById('success-modal').classList.remove('active');
+    }
+
+    function openLoginModal() {
+        document.getElementById('login-modal').classList.add('active');
+    }
+
+    function closeLoginModal() {
+        document.getElementById('login-modal').classList.remove('active');
+    }
+
+    // 登录功能
+    async function performLogin() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        try {
+            const response = await fetch(`${API_BASE}/api/login?username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                userToken = result.token;
+                localStorage.setItem('userToken', userToken);
+                localStorage.setItem('userInfo', JSON.stringify(result.user));
+                closeLoginModal();
+                alert(`欢迎回来，${result.user.name}！`);
+            } else {
+                alert('登录失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('登录错误:', error);
+            alert('网络错误，请稍后重试');
+        }
+    }
+
+    // 页面加载时初始化
+    window.onload = function() {
+        loadClinics();
+        initMap();
+
+        // 检查本地存储的登录状态
+        const savedToken = localStorage.getItem('userToken');
+        if (savedToken) {
+            userToken = savedToken;
+        }
+    };
+</script>
+</body>
+</html>

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>诊所后台 - DentalReserve</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .sidebar { width: 250px; }
+        .main-content { margin-left: 250px; }
+        @media (max-width: 768px) {
+            .sidebar { width: 0; overflow: hidden; }
+            .main-content { margin-left: 0; }
+            .sidebar.active { width: 250px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+<!-- 侧边栏 -->
+<div class="sidebar fixed h-screen bg-gray-800 text-white">
+    <div class="p-6">
+        <div class="flex items-center space-x-3 mb-8">
+            <i class="fas fa-hospital text-2xl text-blue-300"></i>
+            <h1 class="text-xl font-bold">诊所后台管理</h1>
+        </div>
+
+        <nav class="space-y-2">
+            <a href="#" onclick="showDashboard()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 active-nav">
+                <i class="fas fa-chart-line"></i>
+                <span>仪表盘</span>
+            </a>
+            <a href="#" onclick="showAppointments()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700">
+                <i class="fas fa-calendar-alt"></i>
+                <span>预约管理</span>
+            </a>
+            <a href="#" onclick="showPatients()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700">
+                <i class="fas fa-user-friends"></i>
+                <span>患者管理</span>
+            </a>
+            <a href="#" onclick="showCalls()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700">
+                <i class="fas fa-phone-alt"></i>
+                <span>电话记录</span>
+            </a>
+            <a href="#" onclick="showSchedule()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700">
+                <i class="fas fa-clock"></i>
+                <span>时间管理</span>
+            </a>
+            <a href="#" onclick="showSettings()" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700">
+                <i class="fas fa-cog"></i>
+                <span>诊所设置</span>
+            </a>
+            <a href="/" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 mt-8">
+                <i class="fas fa-home"></i>
+                <span>返回主页</span>
+            </a>
+        </nav>
+    </div>
+
+    <div class="absolute bottom-0 w-full p-6 border-t border-gray-700">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                <i class="fas fa-user-md"></i>
+            </div>
+            <div>
+                <p class="font-semibold">Dr. Smith</p>
+                <p class="text-sm text-gray-400">Toronto Downtown Dental</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 主内容区 -->
+<div class="main-content min-h-screen">
+    <!-- 顶部栏 -->
+    <div class="bg-white shadow">
+        <div class="flex justify-between items-center p-4">
+            <div class="flex items-center space-x-4">
+                <button onclick="toggleSidebar()" class="md:hidden text-gray-600">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <h2 class="text-xl font-bold" id="page-title">仪表盘</h2>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <i class="fas fa-bell text-gray-600 text-xl"></i>
+                    <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                </div>
+                <button onclick="logout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    退出登录
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面内容 -->
+    <div class="p-6" id="page-content">
+        <!-- 仪表盘内容会动态加载 -->
+    </div>
+</div>
+
+<!-- 页面内容模板 -->
+<template id="dashboard-template">
+    <div class="space-y-6">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-lg mr-4">
+                        <i class="fas fa-calendar-check text-blue-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">今日预约</p>
+                        <p class="text-3xl font-bold" id="today-appointments">12</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-lg mr-4">
+                        <i class="fas fa-phone-alt text-green-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">今日通话</p>
+                        <p class="text-3xl font-bold" id="today-calls">8</p>
+                        <p class="text-sm text-gray-500">总时长: 45分钟</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-lg mr-4">
+                        <i class="fas fa-user-plus text-purple-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">本月新患者</p>
+                        <p class="text-3xl font-bold" id="new-patients">24</p>
+                        <p class="text-sm text-gray-500">同比 +15%</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-yellow-100 rounded-lg mr-4">
+                        <i class="fas fa-dollar-sign text-yellow-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">本月收入</p>
+                        <p class="text-3xl font-bold">$8,450</p>
+                        <p class="text-sm text-gray-500">环比 +12%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表和表格 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 预约趋势 -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4">预约趋势</h3>
+                <div class="h-64">
+                    <canvas id="appointments-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- 服务分布 -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4">服务项目分布</h3>
+                <div class="h-64">
+                    <canvas id="services-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 今日预约表格 -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold">今日预约</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">患者</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">服务</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">电话</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="today-appointments-list" class="bg-white divide-y divide-gray-200">
+                    <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="appointments-template">
+    <div class="space-y-6">
+        <!-- 预约管理头部 -->
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-bold">预约管理</h3>
+            <div class="flex space-x-4">
+                <select id="appointment-filter" class="p-2 border border-gray-300 rounded-lg">
+                    <option value="all">全部预约</option>
+                    <option value="today">今日预约</option>
+                    <option value="upcoming">即将到来</option>
+                    <option value="completed">已完成</option>
+                    <option value="cancelled">已取消</option>
+                </select>
+                <button onclick="refreshAppointments()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 预约表格 -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">预约ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">日期时间</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">患者信息</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">服务项目</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">虚拟电话</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="appointments-list" class="bg-white divide-y divide-gray-200">
+                    <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="patients-template">
+    <div class="space-y-6">
+        <h3 class="text-xl font-bold">患者管理</h3>
+        <!-- 患者列表会动态加载 -->
+        <div id="patients-list">
+            <p class="text-gray-500">正在加载患者数据...</p>
+        </div>
+    </div>
+</template>
+
+<template id="calls-template">
+    <div class="space-y-6">
+        <h3 class="text-xl font-bold">电话记录</h3>
+        <!-- 通话记录会动态加载 -->
+        <div id="calls-list">
+            <p class="text-gray-500">正在加载通话记录...</p>
+        </div>
+    </div>
+</template>
+
+<template id="schedule-template">
+    <div class="space-y-6">
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-bold">时间管理</h3>
+            <button onclick="editSchedule()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                编辑时间表
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h4 class="text-lg font-semibold mb-4">本周时间表</h4>
+            <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
+                <!-- 周一到周日的时间表 -->
+                <div class="text-center">
+                    <p class="font-semibold">周一</p>
+                    <p class="text-green-600">9:00-18:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周二</p>
+                    <p class="text-green-600">9:00-18:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周三</p>
+                    <p class="text-green-600">9:00-18:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周四</p>
+                    <p class="text-green-600">9:00-18:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周五</p>
+                    <p class="text-green-600">9:00-18:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周六</p>
+                    <p class="text-yellow-600">10:00-16:00</p>
+                </div>
+                <div class="text-center">
+                    <p class="font-semibold">周日</p>
+                    <p class="text-red-600">休息</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h4 class="text-lg font-semibold mb-4">节假日设置</h4>
+            <div id="holidays-list">
+                <p class="text-gray-500">暂无节假日设置</p>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="settings-template">
+    <div class="space-y-6">
+        <h3 class="text-xl font-bold">诊所设置</h3>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h4 class="text-lg font-semibold mb-4">基本信息</h4>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">诊所名称</label>
+                    <input type="text" class="w-full p-3 border border-gray-300 rounded-lg" value="Toronto Downtown Dental">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">联系电话</label>
+                    <input type="tel" class="w-full p-3 border border-gray-300 rounded-lg" value="+1 (416) 555-1234">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">诊所地址</label>
+                    <textarea rows="3" class="w-full p-3 border border-gray-300 rounded-lg">123 Bay Street, Toronto, ON M5J 2S1</textarea>
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">服务描述</label>
+                    <textarea rows="4" class="w-full p-3 border border-gray-300 rounded-lg">位于多伦多市中心的现代化牙科诊所，提供全方位牙科服务，包括洗牙、补牙、根管治疗、牙齿矫正等。</textarea>
+                </div>
+                <button class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    保存更改
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h4 class="text-lg font-semibold mb-4">服务项目管理</h4>
+            <div id="services-management">
+                <!-- 服务项目会动态加载 -->
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+    const API_BASE = 'http://localhost:8000';
+    let currentPage = 'dashboard';
+
+    // 切换页面
+    function showDashboard() {
+        currentPage = 'dashboard';
+        document.getElementById('page-title').textContent = '仪表盘';
+        loadDashboard();
+        updateActiveNav();
+    }
+
+    function showAppointments() {
+        currentPage = 'appointments';
+        document.getElementById('page-title').textContent = '预约管理';
+        loadAppointments();
+        updateActiveNav();
+    }
+
+    function showPatients() {
+        currentPage = 'patients';
+        document.getElementById('page-title').textContent = '患者管理';
+        loadPatients();
+        updateActiveNav();
+    }
+
+    function showCalls() {
+        currentPage = 'calls';
+        document.getElementById('page-title').textContent = '电话记录';
+        loadCalls();
+        updateActiveNav();
+    }
+
+    function showSchedule() {
+        currentPage = 'schedule';
+        document.getElementById('page-title').textContent = '时间管理';
+        loadSchedule();
+        updateActiveNav();
+    }
+
+    function showSettings() {
+        currentPage = 'settings';
+        document.getElementById('page-title').textContent = '诊所设置';
+        loadSettings();
+        updateActiveNav();
+    }
+
+    // 更新活动导航
+    function updateActiveNav() {
+        document.querySelectorAll('nav a').forEach(link => {
+            link.classList.remove('bg-gray-700', 'active-nav');
+        });
+
+        const activeLinks = {
+            'dashboard': 0,
+            'appointments': 1,
+            'patients': 2,
+            'calls': 3,
+            'schedule': 4,
+            'settings': 5
+        };
+
+        const links = document.querySelectorAll('nav a');
+        if (links[activeLinks[currentPage]]) {
+            links[activeLinks[currentPage]].classList.add('bg-gray-700', 'active-nav');
+        }
+    }
+
+    // 加载仪表盘
+    async function loadDashboard() {
+        const template = document.getElementById('dashboard-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+
+        // 加载今日预约
+        try {
+            const response = await fetch(`${API_BASE}/api/appointments`);
+            const data = await response.json();
+
+            if (data.success) {
+                const today = new Date().toISOString().split('T')[0];
+                const todayAppointments = data.appointments.filter(apt => apt.date === today);
+
+                document.getElementById('today-appointments').textContent = todayAppointments.length;
+
+                // 更新表格
+                const tableBody = document.getElementById('today-appointments-list');
+                tableBody.innerHTML = '';
+
+                todayAppointments.forEach(appointment => {
+                    const row = `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <i class="fas fa-clock mr-2 text-gray-400"></i>
+                                    ${appointment.time}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <i class="fas fa-user mr-2 text-gray-400"></i>
+                                    ${appointment.patient_name}
+                                </div>
+                                <div class="text-sm text-gray-500">${appointment.patient_phone}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">${appointment.service}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-blue-600 font-mono">${appointment.virtual_phone}</div>
+                                <button onclick="callPatient('${appointment.id}')" class="text-sm text-green-600 hover:text-green-800">
+                                    <i class="fas fa-phone-alt mr-1"></i>拨打
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                    ${appointment.status}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button onclick="viewAppointment('${appointment.id}')" class="text-blue-600 hover:text-blue-800 mr-3">
+                                    查看
+                                </button>
+                                <button onclick="completeAppointment('${appointment.id}')" class="text-green-600 hover:text-green-800">
+                                    完成
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            }
+        } catch (error) {
+            console.error('加载预约数据失败:', error);
+        }
+
+        // 创建图表
+        createCharts();
+    }
+
+    // 创建图表
+    function createCharts() {
+        // 预约趋势图
+        const appointmentsCtx = document.getElementById('appointments-chart').getContext('2d');
+        new Chart(appointmentsCtx, {
+            type: 'line',
+            data: {
+                labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                datasets: [{
+                    label: '预约数量',
+                    data: [12, 19, 15, 18, 14, 8, 3],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // 服务分布图
+        const servicesCtx = document.getElementById('services-chart').getContext('2d');
+        new Chart(servicesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['牙齿清洁', '补牙', '根管治疗', '牙齿美白', '牙齿矫正'],
+                datasets: [{
+                    data: [35, 25, 15, 12, 13],
+                    backgroundColor: [
+                        '#3b82f6',
+                        '#10b981',
+                        '#8b5cf6',
+                        '#f59e0b',
+                        '#ef4444'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+
+    // 加载预约管理
+    async function loadAppointments() {
+        const template = document.getElementById('appointments-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+
+        await refreshAppointments();
+    }
+
+    // 刷新预约列表
+    async function refreshAppointments() {
+        try {
+            const response = await fetch(`${API_BASE}/api/appointments`);
+            const data = await response.json();
+
+            if (data.success) {
+                const filter = document.getElementById('appointment-filter')?.value || 'all';
+                let appointments = data.appointments;
+
+                // 应用筛选
+                if (filter === 'today') {
+                    const today = new Date().toISOString().split('T')[0];
+                    appointments = appointments.filter(apt => apt.date === today);
+                } else if (filter === 'upcoming') {
+                    const today = new Date().toISOString().split('T')[0];
+                    appointments = appointments.filter(apt => apt.date >= today);
+                }
+
+                const tableBody = document.getElementById('appointments-list');
+                tableBody.innerHTML = '';
+
+                appointments.forEach(appointment => {
+                    const statusColors = {
+                        'confirmed': 'bg-green-100 text-green-800',
+                        'pending': 'bg-yellow-100 text-yellow-800',
+                        'completed': 'bg-blue-100 text-blue-800',
+                        'cancelled': 'bg-red-100 text-red-800'
+                    };
+
+                    const row = `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <code class="text-sm">${appointment.id.substring(0, 8)}...</code>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${appointment.date} ${appointment.time}
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="font-medium">${appointment.patient_name}</div>
+                                <div class="text-sm text-gray-500">${appointment.patient_phone}</div>
+                                <div class="text-sm text-gray-500">${appointment.patient_email}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${appointment.service}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="font-mono text-blue-600">${appointment.virtual_phone}</div>
+                                <button onclick="callPatient('${appointment.id}', 'clinic_to_patient')" class="text-sm text-green-600 hover:text-green-800">
+                                    <i class="fas fa-phone-alt mr-1"></i>呼叫患者
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusColors[appointment.status] || 'bg-gray-100 text-gray-800'}">
+                                    ${appointment.status}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex space-x-2">
+                                    <button onclick="viewAppointment('${appointment.id}')" class="text-blue-600 hover:text-blue-800">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button onclick="editAppointment('${appointment.id}')" class="text-yellow-600 hover:text-yellow-800">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="cancelAppointment('${appointment.id}')" class="text-red-600 hover:text-red-800">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            }
+        } catch (error) {
+            console.error('加载预约失败:', error);
+        }
+    }
+
+    // 其他页面加载函数
+    async function loadPatients() {
+        const template = document.getElementById('patients-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+
+        // 模拟患者数据
+        const patientsList = document.getElementById('patients-list');
+        patientsList.innerHTML = `
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">患者姓名</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">联系方式</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">预约次数</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最后预约</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                        <i class="fas fa-user text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium">张三</div>
+                                        <div class="text-sm text-gray-500">ID: PAT001</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div>+1 (416) 555-1111</div>
+                                <div class="text-sm text-gray-500">zhangsan@example.com</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">3次</td>
+                            <td class="px-6 py-4 whitespace-nowrap">2024-01-10</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button class="text-blue-600 hover:text-blue-800 mr-3">
+                                    查看记录
+                                </button>
+                                <button class="text-green-600 hover:text-green-800">
+                                    发送消息
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                                        <i class="fas fa-user text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium">李四</div>
+                                        <div class="text-sm text-gray-500">ID: PAT002</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div>+1 (647) 555-2222</div>
+                                <div class="text-sm text-gray-500">lisi@example.com</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">5次</td>
+                            <td class="px-6 py-4 whitespace-nowrap">2024-01-12</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button class="text-blue-600 hover:text-blue-800 mr-3">
+                                    查看记录
+                                </button>
+                                <button class="text-green-600 hover:text-green-800">
+                                    发送消息
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    async function loadCalls() {
+        const template = document.getElementById('calls-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+
+        // 模拟通话记录
+        document.getElementById('calls-list').innerHTML = `
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-phone-alt text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium">张三 (患者)</p>
+                                    <p class="text-sm text-gray-500">虚拟号码: +1 (416) 555-9999</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-medium">今日 10:30</p>
+                                <p class="text-sm text-gray-500">时长: 5分钟</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-phone text-green-600"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium">李四 (患者)</p>
+                                    <p class="text-sm text-gray-500">虚拟号码: +1 (416) 555-8888</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-medium">昨日 14:20</p>
+                                <p class="text-sm text-gray-500">时长: 12分钟</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function loadSchedule() {
+        const template = document.getElementById('schedule-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+    }
+
+    function loadSettings() {
+        const template = document.getElementById('settings-template').content.cloneNode(true);
+        document.getElementById('page-content').innerHTML = '';
+        document.getElementById('page-content').appendChild(template);
+    }
+
+    // 拨打电话
+    async function callPatient(appointmentId, direction = 'clinic_to_patient') {
+        try {
+            const response = await fetch(`${API_BASE}/api/calls/initiate?appointment_id=${appointmentId}&direction=${direction}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`正在呼叫患者...\n虚拟号码: ${result.virtual_phone}`);
+            } else {
+                alert('呼叫失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('呼叫失败:', error);
+            alert('网络错误，请稍后重试');
+        }
+    }
+
+    // 查看预约详情
+    function viewAppointment(appointmentId) {
+        alert(`查看预约详情: ${appointmentId}`);
+        // 这里可以实现打开详情模态框
+    }
+
+    // 完成预约
+    async function completeAppointment(appointmentId) {
+        if (confirm('确认标记为已完成？')) {
+            alert(`预约 ${appointmentId} 已标记为完成`);
+            // 这里可以调用API更新状态
+            refreshAppointments();
+        }
+    }
+
+    // 取消预约
+    async function cancelAppointment(appointmentId) {
+        if (confirm('确认取消此预约？')) {
+            alert(`预约 ${appointmentId} 已取消`);
+            // 这里可以调用API取消预约
+            refreshAppointments();
+        }
+    }
+
+    // 编辑时间表
+    function editSchedule() {
+        alert('编辑时间表功能开发中...');
+    }
+
+    // 退出登录
+    function logout() {
+        if (confirm('确定要退出登录吗？')) {
+            localStorage.removeItem('userToken');
+            localStorage.removeItem('userInfo');
+            window.location.href = '/';
+        }
+    }
+
+    // 切换侧边栏（移动端）
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.classList.toggle('active');
+    }
+
+    // 页面初始化
+    window.onload = function() {
+        showDashboard();
+
+        // 检查登录状态
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            alert('请先登录诊所后台');
+            window.location.href = '/';
+        }
+    };
+</script>
+</body>
+</html>
